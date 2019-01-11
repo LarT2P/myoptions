@@ -10,7 +10,7 @@ values."
    ;; Base distribution to use. This is a layer contained in the directory
    ;; `+distribution'. For now available distributions are `spacemacs-base'
    ;; or `spacemacs'. (default 'spacemacs)
-   dotspacemacs-distribution 'spacemacs-base
+   dotspacemacs-distribution 'spacemacs
    ;; Lazy installation of layers (i.e. layers are installed only when a file
    ;; with a supported type is opened). Possible values are `all', `unused'
    ;; and `nil'. `unused' will lazy install only unused layers (i.e. layers
@@ -38,8 +38,7 @@ values."
      ;; ----------------------------------------------------------------
      ivy
      (auto-completion :variables auto-completion-enable-sort-by-usage t
-                                 auto-completion-enable-snippets-in-popup t
-                      :disabled-for org markdown)
+                                 auto-completion-enable-snippets-in-popup t)
      better-defaults
      emacs-lisp
      ;; git
@@ -320,22 +319,92 @@ you should place your code here."
   (global-set-key (kbd "<backtab>") #'(lambda ()
                                         (interactive)
                                         (switch-to-buffer (other-buffer (current-buffer) 1))))
-
-   (defun single-lines-only ()
-    "replace multiple blank lines with a single one"
+  (defun rm-trailing-spaces ()
+    "Remove spaces at ends of all lines"
     (interactive)
-    (goto-char (point-min))
-    (while (re-search-forward "\\(^\\s-*$\\)\n" nil t)
-      (replace-match "\n")
-      (forward-char 1)))
-  (defun markdown-pangu-formated (begin end)
-     "1.压缩空行
-      2.去除尾部空格
-      3.替换全角的字母和数字"
-     (interactive "r")
-     (single-lines-only)
-     (delete-trailing-whitespace)
-     )
+    (save-excursion
+      (let ((current (point)))
+        (goto-char 0)
+        (while (re-search-forward "[ \t]+$" nil t)
+          (replace-match "" nil nil))
+        (goto-char current))))
+
+  (defun xah-convert-english-chinese-punctuation (@begin @end &optional @to-direction)
+    "Convert punctuation from/to English/Chinese characters.
+    When called interactively, do current line or selection.
+    The conversion direction is automatically determined.
+    If `universal-argument' is called, ask user for change direction.
+    When called in lisp code, *begin *end are region begin/end positions.
+    *to-direction must be any of the following values: 「\"chinese\"」, 「\"english\"」, 「\"auto\"」.
+    See also: `xah-remove-punctuation-trailing-redundant-space'.
+    URL `http://ergoemacs.org/emacs/elisp_convert_chinese_punctuation.html'
+    Version 2015-10-05"
+    (interactive
+     (let ($p1 $p2)
+       (if (use-region-p)
+           (progn
+             (setq $p1 (region-beginning))
+             (setq $p2 (region-end)))
+         (progn
+           (setq $p1 (line-beginning-position))
+           (setq $p2 (line-end-position))))
+       (list
+        $p1
+        $p2
+        (if current-prefix-arg
+            (ido-completing-read
+             "Change to: "
+             '( "english"  "chinese")
+             "PREDICATE"
+             "REQUIRE-MATCH")
+          "auto"
+          ))))
+    (let (
+          ($input-str (buffer-substring-no-properties @begin @end))
+          ($replacePairs
+           [
+            [". " "。"]
+            [".\n" "。\n"]
+            [", " "，"]
+            [",\n" "，\n"]
+            [": " "："]
+            ["; " "；"]
+            ["? " "？"] ; no space after
+            ["! " "！"]
+
+            ;; for inside HTML
+            [".</" "。</"]
+            ["?</" "？</"]
+            [":</" "：</"]
+            [" " "　"]
+            ]
+           ))
+
+      (when (string= @to-direction "auto")
+        (setq
+         @to-direction
+         (if
+             (or
+              (string-match "　" $input-str)
+              (string-match "。" $input-str)
+              (string-match "，" $input-str)
+              (string-match "？" $input-str)
+              (string-match "！" $input-str))
+             "english"
+           "chinese")))
+      (save-excursion
+        (save-restriction
+          (narrow-to-region @begin @end)
+          (mapc
+           (lambda ($x)
+             (progn
+               (goto-char (point-min))
+               (while (search-forward (aref $x 0) nil "noerror")
+                 (replace-match (aref $x 1)))))
+           (cond
+            ((string= @to-direction "chinese") $replacePairs)
+            ((string= @to-direction "english") (mapcar (lambda (x) (vector (elt x 1) (elt x 0))) $replacePairs))
+            (t (user-error "Your 3rd argument 「%s」 isn't valid" @to-direction))))))))
 
   ;; 当遇到 kana han symbol cjk-misc bopomofo 字符集时，Emacs 明白需要使用
   ;; Noto Sans Mono CJK SC 字体，同时设置缩放比例
@@ -354,7 +423,7 @@ you should place your code here."
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
    (quote
-    (pyim pyim-basedict pangu-spacing find-by-pinyin-dired ace-pinyin pinyinlib xterm-color shell-pop multi-term eshell-z eshell-prompt-extras esh-help unfill org-projectile org-category-capture org-present org-pomodoro alert log4e gntp org-mime org-download mwim mmm-mode markdown-toc dash s markdown-mode htmlize gnuplot gh-md fuzzy company-statistics company auto-yasnippet yasnippet ac-ispell auto-complete which-key wgrep use-package smex pcre2el macrostep ivy-hydra hydra helm-make helm helm-core popup flx exec-path-from-shell evil-visualstar evil-escape evil goto-chg undo-tree elisp-slime-nav diminish counsel-projectile projectile pkg-info epl counsel swiper ivy bind-map bind-key auto-compile packed async ace-window avy))))
+    (ws-butler winum volatile-highlights vi-tilde-fringe uuidgen toc-org spaceline powerline restart-emacs request rainbow-delimiters popwin persp-mode paradox spinner org-bullets open-junk-file neotree move-text lorem-ipsum linum-relative link-hint indent-guide hungry-delete hl-todo highlight-parentheses highlight-numbers parent-mode highlight-indentation google-translate golden-ratio flx-ido fill-column-indicator fancy-battery eyebrowse expand-region evil-visual-mark-mode evil-unimpaired evil-tutor evil-surround evil-search-highlight-persist evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state smartparens evil-indent-plus evil-iedit-state iedit evil-exchange evil-ediff evil-args evil-anzu anzu eval-sexp-fu highlight dumb-jump f define-word column-enforce-mode clean-aindent-mode auto-highlight-symbol aggressive-indent adaptive-wrap ace-link pyim pyim-basedict pangu-spacing find-by-pinyin-dired ace-pinyin pinyinlib xterm-color shell-pop multi-term eshell-z eshell-prompt-extras esh-help unfill org-projectile org-category-capture org-present org-pomodoro alert log4e gntp org-mime org-download mwim mmm-mode markdown-toc dash s markdown-mode htmlize gnuplot gh-md fuzzy company-statistics company auto-yasnippet yasnippet ac-ispell auto-complete which-key wgrep use-package smex pcre2el macrostep ivy-hydra hydra helm-make helm helm-core popup flx exec-path-from-shell evil-visualstar evil-escape evil goto-chg undo-tree elisp-slime-nav diminish counsel-projectile projectile pkg-info epl counsel swiper ivy bind-map bind-key auto-compile packed async ace-window avy))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
